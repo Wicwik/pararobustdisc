@@ -1,0 +1,53 @@
+do_train: true
+do_eval: true
+
+# Model config
+model_name_or_path: google/gemma-2-9b-it
+bf16: true
+torch_dtype: bfloat16
+optim: adamw_torch
+max_seq_length: 512
+
+# Logging config
+report_to:
+  - wandb
+
+# Data config
+dataset_names: 
+  - mmlu
+  - mmlu_paraphrases
+split_validation_test: true
+# max_train_samples: 1000
+# max_train_samples: 500
+# max_test_samples: 500
+seed: 41
+data_seed: 41
+packing: false
+dataset_text_field: text
+group_by_length: false
+per_device_train_batch_size: 2
+
+# Save config
+eval_strategy: steps
+save_strategy: steps
+logging_strategy: steps
+eval_steps: 0.1
+save_steps: 0.1
+logging_steps: 1
+load_best_model_at_end: true
+save_total_limit: 1
+
+# PeftConfig (LoRA)
+task_type: CAUSAL_LM
+r: 16
+lora_dropout: 0.05
+lora-alpha: 16
+init_lora_weights: gaussian
+lora_random_state: 41
+
+# Optimizer config
+weight_decay: 0.00001
+warmup_ratio: 0.03
+num_train_epochs: 10
+learning_rate: 0.0002
+lr_scheduler_type: cosine

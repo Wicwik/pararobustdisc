@@ -77,8 +77,6 @@ for dataset_name in data_config.dataset_names:
             attn_implementation="eager"
         ).to("cuda")
     
-    print(model)
-    exit()
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_config.model_name_or_path,
