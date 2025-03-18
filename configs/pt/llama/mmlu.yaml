@@ -1,15 +1,32 @@
 do_train: true
 do_eval: true
+
+# Model config
+model_name_or_path: meta-llama/Meta-Llama-3.1-8B-Instruct
+bf16: true
+torch_dtype: bfloat16
+max_seq_length: 512
+
+# Logging config
+report_to:
+  - wandb
+
+# Data config
 dataset_names: 
   - mmlu
   - mmlu_paraphrases
-model_name_or_path: meta-llama/Meta-Llama-3.1-8B-Instruct
-tokenizer_name_or_path: meta-llama/Meta-Llama-3.1-8B-Instruct
-max_seq_length: 512
-per_device_train_batch_size: 4
-report_to:
-  - wandb
 split_validation_test: true
+# max_train_samples: 1000
+# max_train_samples: 500
+# max_test_samples: 500
+seed: 41
+data_seed: 41
+packing: false
+dataset_text_field: text
+group_by_length: false
+per_device_train_batch_size: 4
+
+# Save config
 eval_strategy: steps
 save_strategy: steps
 logging_strategy: steps
@@ -18,21 +35,22 @@ save_steps: 0.1
 logging_steps: 1
 load_best_model_at_end: true
 save_total_limit: 1
+
+# PT config
 task_type: CAUSAL_LM
 num_virtual_tokens: 100
+tokenizer_name_or_path: meta-llama/Meta-Llama-3.1-8B-Instruct
+
+# Optimizer config
+optim: adamw_torch
 weight_decay: 0.00001
 warmup_ratio: 0.03
 num_train_epochs: 10
 learning_rate: 0.3
-bf16: true
-torch_dtype: bfloat16
 lr_scheduler_type: cosine
-optim: adamw_torch
-group_by_length: false
-dataset_text_field: text
-seed: 41
-data_seed: 41
-packing: false
-# max_train_samples: 1000
-# max_train_samples: 500
-# max_test_samples: 500
+
+
+
+
+
+

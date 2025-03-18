@@ -5,7 +5,6 @@ do_eval: true
 model_name_or_path: google/gemma-2-9b-it
 bf16: true
 torch_dtype: bfloat16
-optim: adamw_torch
 max_seq_length: 512
 
 # Logging config
@@ -46,6 +45,7 @@ init_lora_weights: gaussian
 lora_random_state: 41
 
 # Optimizer config
+optim: adamw_torch
 weight_decay: 0.00001
 warmup_ratio: 0.03
 num_train_epochs: 10
