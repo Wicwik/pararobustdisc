@@ -11,6 +11,14 @@ from tasks import AutoTask
 
 import numpy as np
 
+from dataclasses import dataclass, field
+
+# workaround for HF Parser https://github.com/huggingface/transformers/issues/34834
+@dataclass
+class CustomLoraConfig(LoraConfig):
+    init_lora_weights: bool = field(default=True)
+    layers_to_transform: int = field(default=None)
+    loftq_config: dict = field(default_factory=dict)
 
 def get_run_name(timestamp, config_filename, dataset_name, model_name_or_path):
     method = config_filename.split("/")[1]
@@ -34,13 +42,18 @@ args = argparse_parser.parse_args()
 
 print(args.filename)
 
-peft_config_type = PromptTuningConfig if "pt" in args.filename else LoraConfig
+peft_config_type = PromptTuningConfig if "pt" in args.filename else CustomLoraConfig
 
-hfparser = HfArgumentParser((SFTConfig, ModelConfig, peft_config_type, DataConfig))
+hfparser = HfArgumentParser((SFTConfig, peft_config_type, DataConfig))
 
-sft_config, model_config, peft_config, data_config = hfparser.parse_yaml_file(
-    str(args.filename)
+sft_config, peft_config, data_config = hfparser.parse_yaml_file(
+    str(args.filename), allow_extra_keys=True
 )
+
+hfparser = HfArgumentParser((ModelConfig))
+model_config = hfparser.parse_yaml_file(
+    str(args.filename), allow_extra_keys=True
+)[0]
 
 torch_dtype = (
     model_config.torch_dtype
@@ -58,14 +71,15 @@ for dataset_name in data_config.dataset_names:
     set_seed(sft_config.seed)
     np.random.seed(seed=sft_config.seed)
 
-    attn_implementation = "eager" if "gemma" in model_config.model_name_or_path.lower() else "spda"
-
     model = AutoModelForCausalLM.from_pretrained(
             model_config.model_name_or_path,
             torch_dtype=torch_dtype,
-            attn_implementation=attn_implementation
+            attn_implementation="eager"
         ).to("cuda")
     
+    print(model)
+    exit()
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_config.model_name_or_path,
         trust_remote_code=True,
