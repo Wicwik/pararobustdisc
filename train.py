@@ -2,7 +2,13 @@ import argparse, os, torch, wandb
 
 from datetime import datetime
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, set_seed, DataCollatorWithPadding
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    HfArgumentParser,
+    set_seed,
+    DataCollatorWithPadding,
+)
 from peft import get_peft_model, PromptTuningConfig, LoraConfig
 from trl import SFTConfig, ModelConfig, SFTTrainer
 
@@ -13,6 +19,7 @@ import numpy as np
 
 from dataclasses import dataclass, field
 
+
 # workaround for HF Parser https://github.com/huggingface/transformers/issues/34834
 @dataclass
 class CustomLoraConfig(LoraConfig):
@@ -20,10 +27,12 @@ class CustomLoraConfig(LoraConfig):
     layers_to_transform: int = field(default=None)
     loftq_config: dict = field(default_factory=dict)
 
+
 def get_run_name(timestamp, config_filename, dataset_name, model_name_or_path):
     method = config_filename.split("/")[1]
     model = model_name_or_path.split("/")[-1].lower()
     return f"{method}_{timestamp}_{dataset_name}_{model}"
+
 
 timestamp = datetime.now().strftime("%m%d%Y%H%M%S")
 
@@ -36,7 +45,9 @@ argparse_parser.add_argument(
     "filename", help="Filename of a config in yaml format to run."
 )
 argparse_parser.add_argument(
-    "--print_data",  action="store_true", help="Prints data structure of a first sample from train and valid sets."
+    "--print_data",
+    action="store_true",
+    help="Prints data structure of a first sample from train and valid sets.",
 )
 args = argparse_parser.parse_args()
 
@@ -51,9 +62,7 @@ sft_config, peft_config, data_config = hfparser.parse_yaml_file(
 )
 
 hfparser = HfArgumentParser((ModelConfig))
-model_config = hfparser.parse_yaml_file(
-    str(args.filename), allow_extra_keys=True
-)[0]
+model_config = hfparser.parse_yaml_file(str(args.filename), allow_extra_keys=True)[0]
 
 torch_dtype = (
     model_config.torch_dtype
@@ -65,18 +74,19 @@ os.environ["WANDB_ENTITY"] = "rbelanec"
 os.environ["WANDB_PROJECT"] = "robustifying-models-for-benchmarks"
 
 for dataset_name in data_config.dataset_names:
-    sft_config.run_name = get_run_name(timestamp, args.filename, dataset_name, model_config.model_name_or_path)
+    sft_config.run_name = get_run_name(
+        timestamp, args.filename, dataset_name, model_config.model_name_or_path
+    )
     sft_config.output_dir = f"saves/{sft_config.run_name}"
 
     set_seed(sft_config.seed)
     np.random.seed(seed=sft_config.seed)
 
     model = AutoModelForCausalLM.from_pretrained(
-            model_config.model_name_or_path,
-            torch_dtype=torch_dtype,
-            attn_implementation="eager"
-        ).to("cuda")
-    
+        model_config.model_name_or_path,
+        torch_dtype=torch_dtype,
+        attn_implementation="eager",
+    ).to("cuda")
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_config.model_name_or_path,
@@ -90,7 +100,7 @@ for dataset_name in data_config.dataset_names:
         ]  # fix because llama has some active adapters for some reason
 
         tokenizer.add_special_tokens({"pad_token": "<|reserved_special_token_0|>"})
-        
+
         model.config.pad_token_id = tokenizer.pad_token_id
         model.generation_config.pad_token_id = tokenizer.pad_token_id
 
@@ -101,18 +111,18 @@ for dataset_name in data_config.dataset_names:
         indices = np.random.permutation(range(5000))[:100]
 
         word_embedding_weights = (
-            model.word_embeddings(torch.LongTensor(indices).to("cuda"))
-            .detach()
-            .clone()
+            model.word_embeddings(torch.LongTensor(indices).to("cuda")).detach().clone()
         )
 
         model.prompt_encoder.default.embedding.weight = torch.nn.Parameter(
             word_embedding_weights
         )
 
-        print("current PT weights:", model.prompt_encoder.default.embedding.weight, model.prompt_encoder.default.embedding.weight.shape)
-
-
+        print(
+            "current PT weights:",
+            model.prompt_encoder.default.embedding.weight,
+            model.prompt_encoder.default.embedding.weight.shape,
+        )
 
     model.print_trainable_parameters()
 
@@ -163,5 +173,3 @@ for dataset_name in data_config.dataset_names:
         wandb.log(data={})
 
         wandb.finish()
-
-    

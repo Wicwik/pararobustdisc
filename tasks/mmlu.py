@@ -16,6 +16,7 @@ from metrics import (
 
 from tasks.abstract import AbstractTask
 
+
 class MMLU(AbstractTask):
     name = "mmlu"
     labels_list = ["A", "B", "C", "D"]
@@ -30,9 +31,7 @@ class MMLU(AbstractTask):
     id2label = {0: "A", 1: "B", 2: "C", 3: "D"}
 
     def load_dataset(self, split) -> Dataset:
-        return datasets.load_dataset(
-            "rbelanec/mmlu_paraphrases", split=split
-        )
+        return datasets.load_dataset("rbelanec/mmlu_paraphrases", split=split)
 
     def preprocessor(self, example):
         input_texts = [
@@ -41,11 +40,13 @@ class MMLU(AbstractTask):
         ]
         label_texts = [self.id2label[example[self.label_column_name]]]
 
-        return self.apply_template({
-            "content": "\n".join(input_texts) + "\n",
-            "target": " ".join(label_texts),
-            "role": "user",
-        })
+        return self.apply_template(
+            {
+                "content": "\n".join(input_texts) + "\n",
+                "target": " ".join(label_texts),
+                "role": "user",
+            }
+        )
 
 
 class MMLUParaphrases(AbstractTask):
@@ -62,9 +63,7 @@ class MMLUParaphrases(AbstractTask):
     id2label = {0: "A", 1: "B", 2: "C", 3: "D"}
 
     def load_dataset(self, split) -> Dataset:
-        return datasets.load_dataset(
-            "rbelanec/mmlu_paraphrases", split=split
-        )
+        return datasets.load_dataset("rbelanec/mmlu_paraphrases", split=split)
 
     def preprocessor(self, example):
         input_texts = [
@@ -73,8 +72,10 @@ class MMLUParaphrases(AbstractTask):
         ]
         label_texts = [self.id2label[example[self.label_column_name]]]
 
-        return self.apply_template({
-            "content": "\n".join(input_texts) + "\n",
-            "target": " ".join(label_texts),
-            "role": "user",
-        })
+        return self.apply_template(
+            {
+                "content": "\n".join(input_texts) + "\n",
+                "target": " ".join(label_texts),
+                "role": "user",
+            }
+        )

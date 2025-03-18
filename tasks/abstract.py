@@ -9,24 +9,25 @@ from datasets import Dataset
 
 from transformers import EvalPrediction, PreTrainedTokenizer
 
+
 class AbstractTask:
     name: str = NotImplemented
     preprocessor = NotImplemented
     metrics: List[Callable] = NotImplemented
     metric_names: List[str] = NotImplemented
-    seed : int = NotImplemented
-    labels_list : List[str] = None
+    seed: int = NotImplemented
+    labels_list: List[str] = None
     split_to_data_split: Mapping[str, str] = {
         "train": "train",
         "validation": "validation",
         "test": "test",
     }
-    small_datasets_without_all_splits : List[str] = []
-    large_data_without_all_splits : List[str] = ["mmlu", "mmlu_paraphrases"]
-    id2label : Dict[int, str] = NotImplemented
-    label_column_name : str = NotImplemented
+    small_datasets_without_all_splits: List[str] = []
+    large_data_without_all_splits: List[str] = ["mmlu", "mmlu_paraphrases"]
+    id2label: Dict[int, str] = NotImplemented
+    label_column_name: str = NotImplemented
 
-    def __init__(self, tokenizer: PreTrainedTokenizer, seed : int=42) -> None:
+    def __init__(self, tokenizer: PreTrainedTokenizer, seed: int = 42) -> None:
         self.seed = seed
         self.tokenizer = tokenizer
 
@@ -46,7 +47,9 @@ class AbstractTask:
     # get maximum token lenght from labels
     def get_max_target_length(self, default_max_length) -> int:
         if self.labels_list is not None:
-            return max([len(self.tokenizer.encode(label)) for label in self.labels_list])
+            return max(
+                [len(self.tokenizer.encode(label)) for label in self.labels_list]
+            )
         return default_max_length
 
     def check_n_obs(self, n_obs, total_size) -> int:
@@ -100,10 +103,8 @@ class AbstractTask:
         )
 
     def load_dataset(self, split: int) -> Dataset:
-        return datasets.load_dataset(
-            self.name, split=split, script_version="master"
-        )
-    
+        return datasets.load_dataset(self.name, split=split, script_version="master")
+
     def apply_template(self, examples):
         return {
             "text": self.tokenizer.apply_chat_template(
@@ -124,9 +125,7 @@ class AbstractTask:
                 preds[preds == -100] = self.tokenizer.pad_token_id
                 labels[labels == -100] = self.tokenizer.pad_token_id
 
-                decoded_preds, decoded_labels = self.postprocessor(
-                    preds, labels
-                )
+                decoded_preds, decoded_labels = self.postprocessor(preds, labels)
             else:
                 decoded_preds = preds
                 decoded_labels = labels
@@ -152,8 +151,7 @@ class AbstractTask:
     ) -> Dataset:
         if (
             split_validation_test
-            and self.name
-            in self.small_datasets_without_all_splits
+            and self.name in self.small_datasets_without_all_splits
             and split != "train"
         ):
             mapped_split = self.split_to_data_split["validation"]
@@ -165,8 +163,7 @@ class AbstractTask:
 
         elif (
             split_validation_test
-            and self.name
-            in self.large_data_without_all_splits
+            and self.name in self.large_data_without_all_splits
             and split != "test"
         ):
             mapped_split = self.split_to_data_split["train"]
@@ -183,5 +180,3 @@ class AbstractTask:
                 dataset = self.subsample(dataset, n_obs)
 
         return self.map_dataset(dataset)
-    
-

@@ -11,9 +11,10 @@ TASK_MAPPING = OrderedDict(
     ]
 )
 
+
 class AutoTask:
     @classmethod
-    def get(self, task : str, tokenizer : PreTrainedTokenizer, seed=42):
+    def get(self, task: str, tokenizer: PreTrainedTokenizer, seed=42):
         if task in TASK_MAPPING:
             return TASK_MAPPING[task](tokenizer, seed=seed)
 
@@ -23,8 +24,3 @@ class AutoTask:
                 ", ".join(c for c in TASK_MAPPING.keys())
             )
         )
-
-
-
-
-

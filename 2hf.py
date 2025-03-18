@@ -6,9 +6,7 @@ argparse_parser = argparse.ArgumentParser(
     description="Tool for uploading single model from saves to hub.",
 )
 
-argparse_parser.add_argument(
-    "save", help="Directory to a saved HF model."
-)
+argparse_parser.add_argument("save", help="Directory to a saved HF model.")
 
 args = argparse_parser.parse_args()
 
