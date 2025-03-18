@@ -1,11 +1,4 @@
 import datasets
-import numpy as np
-
-
-from collections import OrderedDict
-from typing import Mapping
-
-from typing import List, Dict, Callable
 
 from datasets import Dataset
 
@@ -40,13 +33,22 @@ class MMLU(AbstractTask):
         ]
         label_texts = [self.id2label[example[self.label_column_name]]]
 
-        return self.apply_template(
-            {
-                "content": "\n".join(input_texts) + "\n",
-                "target": " ".join(label_texts),
-                "role": "user",
-            }
-        )
+        if self.split == "validation":
+            return self.apply_test_template(
+                {
+                    "content": "\n".join(input_texts) + "\n",
+                    "target": " ".join(label_texts),
+                    "role": "user",
+                }
+            )
+        else:
+            return self.apply_template(
+                {
+                    "content": "\n".join(input_texts) + "\n",
+                    "target": " ".join(label_texts),
+                    "role": "user",
+                }
+            )
 
 
 class MMLUParaphrases(AbstractTask):

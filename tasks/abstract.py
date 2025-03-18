@@ -105,6 +105,13 @@ class AbstractTask:
     def load_dataset(self, split: int) -> Dataset:
         return datasets.load_dataset(self.name, split=split, script_version="master")
 
+    def apply_test_template(self, examples):
+        return {
+            "text": self.tokenizer.apply_chat_template(
+                [examples], tokenize=False, add_generation_prompt=True
+            )
+        }
+
     def apply_template(self, examples):
         return {
             "text": self.tokenizer.apply_chat_template(
@@ -149,6 +156,8 @@ class AbstractTask:
         n_obs=None,
         split_validation_test=False,
     ) -> Dataset:
+        self.split = split
+
         if (
             split_validation_test
             and self.name in self.small_datasets_without_all_splits
