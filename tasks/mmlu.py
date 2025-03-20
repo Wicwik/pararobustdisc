@@ -18,7 +18,7 @@ class MMLU(AbstractTask):
     split_to_data_split = {
         "train": "train_gemma_dpo",
         "validation": "train_gemma_dpo",
-        "test": "train_gemma_dpo",
+        "test": "test_gemma_dpo",
     }
     label_column_name = "answer"
     id2label = {0: "A", 1: "B", 2: "C", 3: "D"}
@@ -33,7 +33,7 @@ class MMLU(AbstractTask):
         ]
         label_texts = [self.id2label[example[self.label_column_name]]]
 
-        if self.split == "validation":
+        if self.split == "test":
             return self.apply_test_template(
                 {
                     "content": "\n".join(input_texts) + "\n",
@@ -59,7 +59,7 @@ class MMLUParaphrases(AbstractTask):
     split_to_data_split = {
         "train": "train_gemma_dpo",
         "validation": "train_gemma_dpo",
-        "test": "train_gemma_dpo",
+        "test": "test_gemma_dpo",
     }
     label_column_name = "answer"
     id2label = {0: "A", 1: "B", 2: "C", 3: "D"}
@@ -74,10 +74,19 @@ class MMLUParaphrases(AbstractTask):
         ]
         label_texts = [self.id2label[example[self.label_column_name]]]
 
-        return self.apply_template(
-            {
-                "content": "\n".join(input_texts) + "\n",
-                "target": " ".join(label_texts),
-                "role": "user",
-            }
-        )
+        if self.split == "test":
+            return self.apply_test_template(
+                {
+                    "content": "\n".join(input_texts) + "\n",
+                    "target": " ".join(label_texts),
+                    "role": "user",
+                }
+            )
+        else:
+            return self.apply_template(
+                {
+                    "content": "\n".join(input_texts) + "\n",
+                    "target": " ".join(label_texts),
+                    "role": "user",
+                }
+            )

@@ -5,12 +5,22 @@ def join_para_text(x):
     # print(x)
     options = eval(x["choices"])
 
-    return f"Question: {x["paraphrased_question"]}Option A: {options[0]}\nOption B: {options[1]}\nOption C: {options[2]}\nOption D: {options[3]}"
+    return f"Question: {x['paraphrased_question']}Option A: {options[0]}\nOption B: {options[1]}\nOption C: {options[2]}\nOption D: {options[3]}"
+
+def join_input_text(x):
+    # print(x)
+    options = eval(x["choices"])
+
+    return f"Question: {x['question']}\nOption A: {options[0]}\nOption B: {options[1]}\nOption C: {options[2]}\nOption D: {options[3]}"
 
 
 # Define file names
-source_file = "train_gemma_dpo.csv"
-destination_file = "train_gemma_dpo.csv"
+# source_file = "train_gemma_dpo.csv"
+# destination_file = "train_gemma_dpo.csv"
+
+source_file = "test_gemma_dpo.csv"
+destination_file = "test_gemma_dpo.csv"
+
 
 # Specify the column name or index to copy
 column_to_copy = (
@@ -30,9 +40,11 @@ if column_to_copy not in source_df.columns:
 # Add the column to the destination file
 destination_df[column_to_copy] = source_df[column_to_copy]
 
+if "input_text" not in destination_df:
+    destination_df["input_text"] = destination_df.apply(join_input_text, axis=1)
+
 destination_df = destination_df[
     [
-        "idx",
         "question",
         "paraphrased_question",
         "subject",
@@ -45,6 +57,6 @@ destination_df = destination_df[
 destination_df["paraphrased_text"] = destination_df.apply(join_para_text, axis=1)
 
 # Save the updated destination file
-destination_df.to_csv("train_gemma_dpo_new.csv", index=False)
+destination_df.to_csv("test_gemma_dpo_new.csv", index=False)
 
 print("Column copied successfully!")

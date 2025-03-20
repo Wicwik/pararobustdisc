@@ -109,7 +109,8 @@ class AbstractTask:
         return {
             "text": self.tokenizer.apply_chat_template(
                 [examples], tokenize=False, add_generation_prompt=True
-            )
+            ),
+            "target": examples["target"]
         }
 
     def apply_template(self, examples):

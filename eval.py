@@ -1,21 +1,20 @@
-import argparse, os, torch, wandb
+import argparse, os, torch
 
 from datetime import datetime
 
 from transformers import (
-    AutoModelForCausalLM,
+    EvalPrediction,
     AutoTokenizer,
     HfArgumentParser,
     set_seed,
     pipeline,
 )
 from peft import (
-    get_peft_model,
     PromptTuningConfig,
     LoraConfig,
     AutoPeftModelForCausalLM,
 )
-from trl import SFTConfig, ModelConfig, SFTTrainer
+from trl import SFTConfig, ModelConfig
 
 from args import DataConfig
 from tasks import AutoTask
@@ -25,6 +24,8 @@ from tqdm import tqdm
 import numpy as np
 
 from dataclasses import dataclass, field
+
+import pandas as pd
 
 
 # workaround for HF Parser https://github.com/huggingface/transformers/issues/34834
@@ -59,14 +60,11 @@ def predict(test_dataset, model, tokenizer, labels_list):
 
         # print(x_test)
         result = pipe(x_test)
-        print(result)
-        exit()
-
-        # print(model.config.name_or_path)
+        # print(result)
 
         answer = (
             result[0]["generated_text"]
-            .split("label:<|eot_id|><|start_header_id|>assistant<|end_header_id|>")[-1]
+            .split("<|eot_id|><|start_header_id|>assistant<|end_header_id|>")[-1]
             .strip()
         )
 
@@ -76,11 +74,16 @@ def predict(test_dataset, model, tokenizer, labels_list):
                 break
         else:
             y_pred.append("none")
-            print(result)
+            print("not matching labels:", result, answer)
 
         # print(answer)
 
     return y_pred
+
+def evaluate(y_pred, y_true, compute_metrics, prefix="eval"):
+    metrics = compute_metrics(EvalPrediction(y_pred, y_true))
+
+    return {f"{prefix}/{k}": v for k, v in metrics.items()}
 
 
 timestamp = datetime.now().strftime("%m%d%Y%H%M%S")
@@ -92,6 +95,9 @@ argparse_parser = argparse.ArgumentParser(
 
 argparse_parser.add_argument(
     "filename", help="Filename of a config in yaml format to run."
+)
+argparse_parser.add_argument(
+    "model_or_path", help="HF Hub model or path to load and eval."
 )
 argparse_parser.add_argument(
     "--print_data",
@@ -122,6 +128,8 @@ torch_dtype = (
 os.environ["WANDB_ENTITY"] = "rbelanec"
 os.environ["WANDB_PROJECT"] = "robustifying-models-for-benchmarks"
 
+full_test_results = {args.model_or_path.split("/")[-1]: {}}
+
 for dataset_name in data_config.dataset_names:
     sft_config.run_name = get_run_name(
         timestamp, args.filename, dataset_name, model_config.model_name_or_path
@@ -131,9 +139,7 @@ for dataset_name in data_config.dataset_names:
     set_seed(sft_config.seed)
     np.random.seed(seed=sft_config.seed)
 
-    model = AutoPeftModelForCausalLM.from_pretrained(
-        "saves/pt_03172025184408_mmlu_paraphrases_meta-llama-3.1-8b-instruct_best"
-    ).to("cuda")
+    model = AutoPeftModelForCausalLM.from_pretrained(args.model_or_path).to("cuda")
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_config.model_name_or_path,
@@ -162,18 +168,40 @@ for dataset_name in data_config.dataset_names:
 
     print(f"task: {dataset_name}")
 
-    valid_dataset = AutoTask.get(dataset_name, tokenizer, seed=sft_config.seed).get(
-        split="validation",
-        n_obs=data_config.max_valid_samples,
+    test_dataset = AutoTask.get(dataset_name, tokenizer, seed=sft_config.seed).get(
+        split="test",
+        n_obs=data_config.max_test_samples,
         split_validation_test=data_config.split_validation_test,
     )
 
     if args.print_data:
-        print("Valid data")
-        print(valid_dataset)
-        print(valid_dataset["text"][0])
-        print(tokenizer(valid_dataset["text"][0]))
+        print("Test data")
+        print(test_dataset)
+        print(test_dataset["text"][0])
+        print(test_dataset["target"][0])
 
         exit()
 
-    predict(valid_dataset, model, tokenizer, AutoTask.get(dataset_name, tokenizer).labels_list)
+    compute_metrics = AutoTask.get(dataset_name, tokenizer, seed=sft_config.seed).get_compute_metrics(postprocess=False)
+
+    test_results = evaluate(
+        predict(
+            test_dataset,
+            model,
+            tokenizer,
+            AutoTask.get(dataset_name, tokenizer, seed=sft_config.seed).labels_list,
+        ),
+        test_dataset["target"],
+        compute_metrics,
+        prefix="test",
+    )
+
+    print(test_results)
+
+    full_test_results[args.model_or_path.split("/")[-1]][dataset_name] = test_results
+
+    del model, tokenizer
+
+df = pd.DataFrame.from_dict(full_test_results)
+
+df.to_csv(f"{timestamp}_{args.model_or_path.split("/")[-1]}_test_results.csv")
