@@ -138,7 +138,7 @@ class AbstractTask:
                 decoded_preds = preds
                 decoded_labels = labels
 
-            print("compute_metrics:", decoded_preds, decoded_labels)
+            # print("compute_metrics:", decoded_preds, decoded_labels)
 
             metrics = {}
             for m, n in zip(self.metrics, self.metric_names):

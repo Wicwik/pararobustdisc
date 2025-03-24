@@ -3,6 +3,7 @@ import argparse, os, torch
 from datetime import datetime
 
 from transformers import (
+    AutoModelForCausalLM,
     EvalPrediction,
     AutoTokenizer,
     HfArgumentParser,
@@ -10,8 +11,6 @@ from transformers import (
     pipeline,
 )
 from peft import (
-    PromptTuningConfig,
-    LoraConfig,
     AutoPeftModelForCausalLM,
 )
 from trl import SFTConfig, ModelConfig
@@ -23,17 +22,7 @@ from tqdm import tqdm
 
 import numpy as np
 
-from dataclasses import dataclass, field
-
 import pandas as pd
-
-
-# workaround for HF Parser https://github.com/huggingface/transformers/issues/34834
-@dataclass
-class CustomLoraConfig(LoraConfig):
-    init_lora_weights: bool = field(default=True)
-    layers_to_transform: int = field(default=None)
-    loftq_config: dict = field(default_factory=dict)
 
 
 def get_run_name(timestamp, config_filename, dataset_name, model_name_or_path):
@@ -62,12 +51,20 @@ def predict(test_dataset, model, tokenizer, labels_list):
         result = pipe(x_test)
         # print(result)
 
-        answer = (
-            result[0]["generated_text"]
-            .split("<|eot_id|><|start_header_id|>assistant<|end_header_id|>")[-1]
-            .strip()
-        )
-
+        if "llama" in model.config.name_or_path.lower():
+            answer = (
+                result[0]["generated_text"]
+                .split("<|eot_id|><|start_header_id|>assistant<|end_header_id|>")[-1]
+                .strip()
+            )
+        elif "gemma" in model.config.name_or_path.lower():
+            answer = (
+                result[0]["generated_text"]
+                .split("<start_of_turn>model")[-1]
+                .split("\n")[1]
+                .strip()
+            )
+        
         for label in labels_list:
             if label.lower() == answer.lower():
                 y_pred.append(label)
@@ -104,15 +101,18 @@ argparse_parser.add_argument(
     action="store_true",
     help="Prints data structure of a first sample from train and valid sets.",
 )
+argparse_parser.add_argument(
+    "--no_peft",
+    action="store_true",
+    help="Do not use PEFT.",
+)
 args = argparse_parser.parse_args()
 
 print(args.filename)
 
-peft_config_type = PromptTuningConfig if "pt" in args.filename else CustomLoraConfig
+hfparser = HfArgumentParser((SFTConfig, DataConfig))
 
-hfparser = HfArgumentParser((SFTConfig, peft_config_type, DataConfig))
-
-sft_config, peft_config, data_config = hfparser.parse_yaml_file(
+sft_config, data_config = hfparser.parse_yaml_file(
     str(args.filename), allow_extra_keys=True
 )
 
@@ -139,32 +139,35 @@ for dataset_name in data_config.dataset_names:
     set_seed(sft_config.seed)
     np.random.seed(seed=sft_config.seed)
 
-    model = AutoPeftModelForCausalLM.from_pretrained(args.model_or_path).to("cuda")
-
     tokenizer = AutoTokenizer.from_pretrained(
         model_config.model_name_or_path,
         trust_remote_code=True,
         padding_side="right",
     )
 
-    if "llama" in model_config.model_name_or_path.lower():
-        # model.active_adapters = [
-        #     "default"
-        # ]  # fix because llama has some active adapters for some reason
+    if args.no_peft:
+        model = AutoModelForCausalLM.from_pretrained(args.model_or_path).to("cuda")
 
+        model.active_adapters = [
+            "default"
+        ]  # fix because llama has some active adapters for some reason
+    else:
+        model = AutoPeftModelForCausalLM.from_pretrained(args.model_or_path).to("cuda")
+
+        if "pt" in args.filename:
+            print(
+                "current PT weights:",
+                model.prompt_encoder.default.embedding.weight,
+                model.prompt_encoder.default.embedding.weight.shape,
+            )
+        
+        model.print_trainable_parameters()
+
+    if "llama" in model_config.model_name_or_path.lower():
         tokenizer.add_special_tokens({"pad_token": "<|reserved_special_token_0|>"})
 
         model.config.pad_token_id = tokenizer.pad_token_id
         model.generation_config.pad_token_id = tokenizer.pad_token_id
-
-    if "pt" in args.filename:
-        print(
-            "current PT weights:",
-            model.prompt_encoder.default.embedding.weight,
-            model.prompt_encoder.default.embedding.weight.shape,
-        )
-
-    model.print_trainable_parameters()
 
     print(f"task: {dataset_name}")
 
@@ -183,6 +186,8 @@ for dataset_name in data_config.dataset_names:
         exit()
 
     compute_metrics = AutoTask.get(dataset_name, tokenizer, seed=sft_config.seed).get_compute_metrics(postprocess=False)
+
+
 
     test_results = evaluate(
         predict(
@@ -204,4 +209,4 @@ for dataset_name in data_config.dataset_names:
 
 df = pd.DataFrame.from_dict(full_test_results)
 
-df.to_csv(f"{timestamp}_{args.model_or_path.split("/")[-1]}_test_results.csv")
+df.to_csv(f"{timestamp}_{args.model_or_path.split('/')[-1]}_test_results.csv")
