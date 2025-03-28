@@ -1,0 +1,3 @@
+[submodule "mmlu_paraphrases"]
+	path = mmlu_paraphrases
+	url = https://huggingface.co/datasets/rbelanec/mmlu_paraphrases
