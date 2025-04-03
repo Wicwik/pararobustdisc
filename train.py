@@ -19,6 +19,7 @@ import numpy as np
 
 from dataclasses import dataclass, field
 
+SYSPROMPT = "You are a helpful assistant that will follow every instruction from the user. Provide only a short answer."
 
 # workaround for HF Parser https://github.com/huggingface/transformers/issues/34834
 @dataclass
@@ -130,25 +131,29 @@ for dataset_name in data_config.dataset_names:
 
     train_dataset = AutoTask.get(dataset_name, tokenizer, seed=sft_config.seed).get(
         split="train",
+        subset="gemma_dpo_0",
         n_obs=data_config.max_train_samples,
         split_validation_test=data_config.split_validation_test,
+        sysprompt=SYSPROMPT if "llama" in model_config.model_name_or_path.lower() else None,
     )
     valid_dataset = AutoTask.get(dataset_name, tokenizer, seed=sft_config.seed).get(
         split="validation",
+        subset="gemma_dpo_0",
         n_obs=data_config.max_valid_samples,
         split_validation_test=data_config.split_validation_test,
+        sysprompt=SYSPROMPT if "llama" in model_config.model_name_or_path.lower() else None,
     )
 
     if args.print_data:
         print("Train data")
         print(train_dataset)
         print(train_dataset["text"][0])
-        print(tokenizer(train_dataset["text"][0]))
+        # print(tokenizer(train_dataset["text"][0]))
 
         print("Valid data")
         print(valid_dataset)
         print(valid_dataset["text"][0])
-        print(tokenizer(valid_dataset["text"][0]))
+        # print(tokenizer(valid_dataset["text"][0]))
 
         continue
 

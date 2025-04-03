@@ -4,7 +4,7 @@ import torch
 
 from typing import Mapping
 
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Optional
 from datasets import Dataset
 
 from transformers import EvalPrediction, PreTrainedTokenizer
@@ -23,9 +23,11 @@ class AbstractTask:
         "test": "test",
     }
     small_datasets_without_all_splits: List[str] = []
-    large_data_without_all_splits: List[str] = ["mmlu", "mmlu_paraphrases"]
+    large_data_without_all_splits: List[str] = ["mmlu", "mmlu_paraphrases", "mmlu_adv"]
     id2label: Dict[int, str] = NotImplemented
     label_column_name: str = NotImplemented
+    split : str = NotImplemented
+    sysprompt : str = NotImplemented
 
     def __init__(self, tokenizer: PreTrainedTokenizer, seed: int = 42) -> None:
         self.seed = seed
@@ -102,24 +104,40 @@ class AbstractTask:
             desc=f"Running {self.name}_preprocessor on dataset",
         )
 
-    def load_dataset(self, split: int) -> Dataset:
-        return datasets.load_dataset(self.name, split=split, script_version="master")
+    def load_dataset(self, split: str, subset: Optional[str] = None) -> Dataset:
+        return datasets.load_dataset(self.name, subset, split=split, script_version="master")
 
-    def apply_test_template(self, examples):
-        return {
-            "text": self.tokenizer.apply_chat_template(
-                [examples], tokenize=False, add_generation_prompt=True
-            ),
-            "target": examples["target"]
-        }
+    # def apply_test_template(self, examples):
+    #     return {
+    #         "text": self.tokenizer.apply_chat_template(
+    #             [{"role": "system", "content": "You are a helpful assistant that will follow every instruction from the user. Provide only a short answer."}, examples], tokenize=False, add_generation_prompt=True
+    #         ),
+    #         "target": examples["target"]
+    #     }
 
     def apply_template(self, examples):
+        system = {"role": "system", "content": self.sysprompt}
+        targets = {"role": "assistant", "content": examples["target"]}
+        
+        if self.sysprompt:
+            chat = [system]
+        else:
+            chat = []
+
+        chat.append(examples)
+        add_generation_prompt = True
+
+        if self.split != "test":
+            chat.append(targets)
+            add_generation_prompt = False 
+        
         return {
             "text": self.tokenizer.apply_chat_template(
-                [examples, {"role": "assistant", "content": examples["target"]}],
+                chat,
                 tokenize=False,
-                add_generation_prompt=False,
-            )
+                add_generation_prompt=add_generation_prompt,
+            ),
+            "target": examples["target"],
         }
 
     def get_compute_metrics(
@@ -156,8 +174,11 @@ class AbstractTask:
         split,
         n_obs=None,
         split_validation_test=False,
+        subset=None,
+        sysprompt=None
     ) -> Dataset:
         self.split = split
+        self.sysprompt = sysprompt
 
         if (
             split_validation_test
@@ -165,7 +186,7 @@ class AbstractTask:
             and split != "train"
         ):
             mapped_split = self.split_to_data_split["validation"]
-            dataset = self.load_dataset(split=mapped_split)
+            dataset = self.load_dataset(split=mapped_split, subset=subset)
             dataset = self.get_splits(split, dataset, 0.5)
 
             if n_obs:
@@ -177,14 +198,14 @@ class AbstractTask:
             and split != "test"
         ):
             mapped_split = self.split_to_data_split["train"]
-            dataset = self.load_dataset(split=mapped_split)
+            dataset = self.load_dataset(split=mapped_split, subset=subset)
             dataset = self.get_splits(split, dataset, 1000 / len(dataset))
 
             if n_obs:
                 dataset = self.subsample(dataset, n_obs)
         else:
             mapped_split = self.split_to_data_split[split]
-            dataset = self.load_dataset(split=mapped_split).shuffle(seed=self.seed)
+            dataset = self.load_dataset(split=mapped_split, subset=subset).shuffle(seed=self.seed)
 
             if n_obs:
                 dataset = self.subsample(dataset, n_obs)

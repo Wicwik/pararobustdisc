@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from tasks.mmlu import MMLU, MMLUParaphrases
+from tasks.mmlu import MMLU, MMLUParaphrases, MMLUAdversarial
 
 from transformers import PreTrainedTokenizer
 
@@ -8,6 +8,7 @@ TASK_MAPPING = OrderedDict(
     [
         ("mmlu", MMLU),
         ("mmlu_paraphrases", MMLUParaphrases),
+        ("mmlu_adv", MMLUAdversarial),
     ]
 )
 
